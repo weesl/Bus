@@ -22,9 +22,9 @@ const getSmartApiUrl = () => {
 
     // 1. Vercel Deployment (or any HTTPS domain)
     // If we are on a vercel.app domain or any HTTPS domain that isn't local, 
-    // we assume the backend is served from the same origin at /stkpush
-    if (host.includes('vercel.app') || (window.location.protocol === 'https:' && !host.includes('localhost'))) {
-        return `${origin}/stkpush`;
+    // we use a RELATIVE path. This allows Vercel to route to the backend on the same origin.
+    if (host.includes('vercel.app') || (window.location.protocol === 'https:' && !host.includes('localhost') && !host.includes('127.0.0.1'))) {
+        return '/stkpush';
     }
 
     // 2. Localhost IPv4 force
@@ -1721,7 +1721,7 @@ function triggerStkPush(phone) {
                     <ul class="text-left text-xs list-disc pl-4 mt-2">
                         <li>Check your internet connection.</li>
                         <li>Verify the URL in Settings is correct.</li>
-                        <li>Check your cloud hosting logs (Replit/Render).</li>
+                        <li>Check if your backend is sleeping (e.g. Render/Replit free tier).</li>
                     </ul>`;
                 }
             }

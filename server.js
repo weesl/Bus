@@ -75,12 +75,19 @@ function getLocalIp() {
 }
 
 // --- ROUTE: STATUS CHECK ---
+// Handle root get for health check
 app.get('/', (req, res) => {
+    res.send('✅ BASI Backend is Online and Running!');
+});
+// Handle /stkpush get for health check as well (in case of reroute)
+app.get('/stkpush', (req, res) => {
     res.send('✅ BASI Backend is Online and Running!');
 });
 
 // --- ROUTE: STK PUSH ---
-app.post('/stkpush', async (req, res) => {
+// IMPORTANT: Listen on BOTH '/' and '/stkpush'. 
+// Vercel rewrites often strip the path, sending the request to the root of the function.
+app.post(['/', '/stkpush'], async (req, res) => {
     const { phone, amount } = req.body;
     console.log(`[${new Date().toLocaleTimeString()}] Payment Request: ${phone} - KES ${amount}`);
 
@@ -128,7 +135,8 @@ app.post('/stkpush', async (req, res) => {
 });
 
 // --- START SERVER ---
-// Only run app.listen if running locally (not on Vercel)
+// Only run app.listen if running locally. 
+// On Vercel, exporting 'app' allows the platform to handle the request.
 if (require.main === module) {
     app.listen(PORT, () => {
         const localIp = getLocalIp();
