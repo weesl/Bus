@@ -28,13 +28,12 @@ const getSmartApiUrl = () => {
     const host = window.location.hostname;
     
     // 1. Vercel/Cloud Deployment
-    // If running on Vercel or any non-local HTTPS domain, use relative path
-    if (host.includes('vercel.app') || (window.location.protocol === 'https:' && !host.includes('localhost') && !host.includes('127.0.0.1'))) {
-        return ''; // Base URL is root. Fetch will append /stkpush or /config
+    if (host.includes('vercel.app') || host.includes('onrender.com') || (window.location.protocol === 'https:' && !host.includes('localhost') && !host.includes('127.0.0.1'))) {
+        return ''; 
     }
 
-    // 2. Localhost IPv4 force
-    if (host === 'localhost') return 'http://127.0.0.1:3000';
+    // 2. Localhost IPv4 force (Use 127.0.0.1 to avoid IPv6 ::1 issues)
+    if (host === 'localhost' || host === '127.0.0.1') return 'http://127.0.0.1:3000';
     
     // 3. Local Network (Mobile testing)
     if (host.match(/^192\.168\./) || host.match(/^10\./)) {
@@ -594,25 +593,19 @@ function loadData() {
 function loadSettings() {
     const saved = localStorage.getItem(SETTINGS_KEY);
     
+    // Force Reset API URL if on Cloud Env (Fixes the "Failed to fetch" due to old localhost setting)
+    const onCloud = window.location.hostname.includes('vercel.app') || window.location.hostname.includes('onrender.com');
+    
     if (saved) {
         const loaded = JSON.parse(saved);
         settings = { ...settings, ...loaded };
         
-        // Ensure defaults if stored settings are missing keys
-        if (!settings.firebaseConfig.apiKey) {
-             // Wait for async load from config or leave empty
-        }
-
-        // Smart Update: If user has the old localhost default but is now on a different network, hint update
-        if (settings.apiUrl.includes('localhost') && window.location.hostname !== 'localhost') {
-             if (settings.apiUrl === 'http://127.0.0.1:3000/stkpush' || settings.apiUrl === 'http://localhost:3000/stkpush') {
-                settings.apiUrl = BASE_URL + '/stkpush';
-             }
-        }
-        
-        // Use defaults if empty
-        if (!settings.apiUrl) {
-            settings.apiUrl = BASE_URL + '/stkpush';
+        // CRITICAL FIX: If user is on cloud but has localhost saved, overwrite it.
+        if (onCloud) {
+            settings.apiUrl = '/stkpush';
+        } else if (!settings.apiUrl || (settings.apiUrl.includes('localhost') && window.location.hostname !== 'localhost')) {
+             // If local but network changed
+             settings.apiUrl = BASE_URL + '/stkpush';
         }
 
         DOMElements.settingsDemoToggle.checked = settings.isDemoMode;
@@ -627,9 +620,9 @@ function loadSettings() {
         }
     } else {
         // First load defaults
-        settings.isDemoMode = false; // Default to false
+        settings.isDemoMode = false; 
         DOMElements.settingsDemoToggle.checked = false;
-        DOMElements.settingsApiUrl.value = BASE_URL + '/stkpush';
+        DOMElements.settingsApiUrl.value = onCloud ? '/stkpush' : (BASE_URL + '/stkpush');
         DOMElements.settingsFbApiKey.value = '';
         DOMElements.settingsFbProjectId.value = '';
         DOMElements.settingsApiConfig.classList.remove('opacity-50', 'pointer-events-none');
@@ -1355,8 +1348,6 @@ async function handleUserMessage() {
     const typingId = renderTypingIndicator();
     
     try {
-        if (!ai) throw new Error("AI Not Initialized (Check Internet or Keys)");
-
         // Initialize Chat Session if not exists (Stateful Chat)
         if (!chatSession) {
              // Construct Context
@@ -1667,7 +1658,7 @@ function triggerStkPush(phone) {
     } else {
         // NODEJS BACKEND LOGIC
         // Default to settings API URL or smart detected URL
-        const proxyUrl = settings.apiUrl;
+        const proxyUrl = settings.apiUrl || getSmartApiUrl();
         
         // Normalize phone to 254 format to be safe
         // Replace ALL plus signs and spaces
@@ -1745,7 +1736,8 @@ function triggerStkPush(phone) {
                         <li class="font-bold text-primary">Is "node server.js" running?</li>
                         <li>Run: <code>node server.js</code> in terminal.</li>
                         <li>Ensure your phone is on the same Wi-Fi.</li>
-                    </ul>`;
+                    </ul>
+                    <br><b>Tried URL:</b> ${proxyUrl}`;
                 } else {
                     title = "Cloud Server Error";
                     friendlyError = `
@@ -1754,7 +1746,8 @@ function triggerStkPush(phone) {
                         <li>Check your internet connection.</li>
                         <li>Verify the URL in Settings is correct.</li>
                         <li>Check if your backend is sleeping (e.g. Render/Replit free tier).</li>
-                    </ul>`;
+                    </ul>
+                    <br><b>Tried URL:</b> ${proxyUrl}`;
                 }
             }
 

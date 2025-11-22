@@ -1,21 +1,22 @@
 {
-  "name": "copy-of-basi-ii",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "name": "basi-app",
+  "version": "1.0.0",
+  "description": "BASI Fare Collector App",
+  "main": "server.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "start": "node server.js",
+    "build": "npm install"
   },
   "dependencies": {
-    "@google/genai": "^1.30.0",
-    "firebase": "^12.6.0"
+    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2",
+    "@google/genai": "^0.1.0",
+    "firebase": "^10.7.1",
+    "dotenv": "^16.3.1"
   },
-  "devDependencies": {
-    "@types/node": "^22.14.0",
-    
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+  "engines": {
+    "node": "18.x"
   }
 }

@@ -1,4 +1,7 @@
 
+// Load environment variables from .env file if present (Local Development)
+require('dotenv').config();
+
 const express = require('express');
 const axios = require('axios');
 const bodyParser = require('body-parser');
@@ -17,6 +20,9 @@ app.use((req, res, next) => {
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
     res.header("Access-Control-Allow-Private-Network", "true"); 
 
+    // Logger for debugging 'Failed to fetch'
+    console.log(`[INCOMING] ${req.method} ${req.url}`);
+
     if (req.method === 'OPTIONS') {
         return res.sendStatus(200);
     }
@@ -26,23 +32,25 @@ app.use((req, res, next) => {
 app.use(bodyParser.json());
 
 // --- SERVE STATIC FRONTEND ---
-// Crucial for local development (localhost:3000) so it can find index.html and index.js
 app.use(express.static(__dirname));
 
 // --- CONFIGURATION ---
-// Loaded from Environment Variables for security
 const CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY;
 const CONSUMER_SECRET = process.env.MPESA_CONSUMER_SECRET;
 const BUSINESS_SHORTCODE = process.env.MPESA_SHORTCODE || '174379';
 const PASSKEY = process.env.MPESA_PASSKEY;
 const CALLBACK_URL = 'https://mydomain.com/mpesa-express-simulate/'; 
 
+if (CONSUMER_KEY && CONSUMER_SECRET) {
+    console.log("✅ M-Pesa Keys Loaded.");
+} else {
+    console.warn("⚠️ M-Pesa Keys MISSING.");
+}
+
 // --- HELPER: GENERATE TOKEN ---
 async function getAccessToken() {
-    // If keys are missing, warn but don't crash app immediately (allows frontend to load)
     if (!CONSUMER_KEY || !CONSUMER_SECRET) {
-        console.warn("WARNING: M-Pesa Keys missing in server environment.");
-        throw new Error("Server Configuration Error: M-Pesa Keys Missing");
+        console.warn("WARNING: M-Pesa Keys missing.");
     }
     
     const auth = Buffer.from(`${CONSUMER_KEY}:${CONSUMER_SECRET}`).toString('base64');
@@ -58,23 +66,15 @@ async function getAccessToken() {
     }
 }
 
-// --- HELPER: FORMAT TIMESTAMP (UTC+3) ---
+// --- HELPER: TIMESTAMP ---
 function getTimestamp() {
     const now = new Date();
     const nairobiOffset = 3 * 60 * 60 * 1000; 
     const nairobiTime = new Date(now.getTime() + nairobiOffset);
-    
-    const year = nairobiTime.getUTCFullYear();
-    const month = String(nairobiTime.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(nairobiTime.getUTCDate()).padStart(2, '0');
-    const hour = String(nairobiTime.getUTCHours()).padStart(2, '0');
-    const minute = String(nairobiTime.getUTCMinutes()).padStart(2, '0');
-    const second = String(nairobiTime.getUTCSeconds()).padStart(2, '0');
-    
-    return `${year}${month}${day}${hour}${minute}${second}`;
+    return nairobiTime.toISOString().replace(/[^0-9]/g, '').slice(0, 14);
 }
 
-// --- HELPER: GET LOCAL IP (For Local Dev Only) ---
+// --- HELPER: LOCAL IP ---
 function getLocalIp() {
     const interfaces = os.networkInterfaces();
     for (const name of Object.keys(interfaces)) {
@@ -86,8 +86,17 @@ function getLocalIp() {
     return '127.0.0.1';
 }
 
+// --- ROUTE: ROOT / HEALTH ---
+// This fixes Vercel 404s and allows easy testing
+app.get('/', (req, res) => {
+    res.send('✅ BASI Backend is Online and Running!');
+});
+
+app.get('/health', (req, res) => {
+    res.send('OK');
+});
+
 // --- ROUTE: APP CONFIG ---
-// Serves public/frontend keys to the client app
 app.get('/config', (req, res) => {
     res.json({
         geminiApiKey: process.env.GEMINI_API_KEY || '',
@@ -101,10 +110,14 @@ app.get('/config', (req, res) => {
 // --- ROUTE: STK PUSH ---
 app.post('/stkpush', async (req, res) => {
     const { phone, amount } = req.body;
-    console.log(`[${new Date().toLocaleTimeString()}] Payment Request: ${phone} - KES ${amount}`);
+    console.log(`[PAYMENT] Request: ${phone} - KES ${amount}`);
 
     if (!phone || !amount) {
         return res.status(400).json({ errorMessage: 'Phone and Amount are required' });
+    }
+
+    if (!CONSUMER_KEY || !CONSUMER_SECRET || !PASSKEY) {
+        return res.status(500).json({ errorMessage: 'Server Config Error: M-Pesa Keys Missing' });
     }
 
     let formattedPhone = phone.replace(/[\s+]/g, '');
@@ -146,17 +159,13 @@ app.post('/stkpush', async (req, res) => {
     }
 });
 
-// --- START SERVER (Local Dev Only) ---
+// --- START SERVER ---
 if (require.main === module) {
     app.listen(PORT, () => {
-        const localIp = getLocalIp();
         console.log(`\n🚀 BASI SERVER READY`);
-        console.log(`--------------------------------------------------`);
         console.log(`🌍 Listening on Port: ${PORT}`);
-        console.log(`💻 Local URL:      http://127.0.0.1:${PORT}`);
-        console.log(`--------------------------------------------------`);
+        console.log(`💻 Link: http://127.0.0.1:${PORT}`);
     });
 }
 
-// Export for Vercel
 module.exports = app;
