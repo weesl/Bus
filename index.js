@@ -3,6 +3,16 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, collection, doc, setDoc, onSnapshot, query, where, deleteDoc, serverTimestamp } from "firebase/firestore";
 
 // --- CONFIGURATION & STATE ---
+// Shim process.env for browser compatibility to use the provided API Key
+if (typeof process === 'undefined') {
+    window.process = { env: {} };
+}
+if (!process.env) {
+    process.env = {};
+}
+// Set the specific API key provided for the Chat Bot
+process.env.API_KEY = 'AIzaSyBpkrtCTJvzp2IY7ikYGPmhBQwWFZOP2ug';
+
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 let fares = [];
@@ -16,11 +26,9 @@ let pendingRouteSelection = null;
 // Detects if we are on localhost, LAN, or Vercel
 const getSmartApiUrl = () => {
     const host = window.location.hostname;
-    const origin = window.location.origin;
-
-    // 1. Vercel Deployment (or any HTTPS domain)
-    // If we are on a vercel.app domain or any HTTPS domain that isn't local, 
-    // we use a RELATIVE path. This allows Vercel to route to the backend on the same origin.
+    
+    // 1. Vercel/Cloud Deployment
+    // If running on Vercel or any non-local HTTPS domain, use relative path
     if (host.includes('vercel.app') || (window.location.protocol === 'https:' && !host.includes('localhost') && !host.includes('127.0.0.1'))) {
         return '/stkpush';
     }
@@ -28,10 +36,7 @@ const getSmartApiUrl = () => {
     // 2. Localhost IPv4 force
     if (host === 'localhost') return 'http://127.0.0.1:3000/stkpush';
     
-    // 3. Empty host (file://)
-    if (!host) return 'http://127.0.0.1:3000/stkpush';
-    
-    // 4. Local Network (Mobile testing)
+    // 3. Local Network (Mobile testing)
     if (host.match(/^192\.168\./) || host.match(/^10\./)) {
         return `http://${host}:3000/stkpush`;
     }
@@ -1316,6 +1321,8 @@ async function handleUserMessage() {
     const typingId = renderTypingIndicator();
     
     try {
+        if (!ai) throw new Error("AI Config Missing");
+
         // Initialize Chat Session if not exists (Stateful Chat)
         if (!chatSession) {
              // Construct Context
