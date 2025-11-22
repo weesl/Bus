@@ -1,13 +1,32 @@
 {
   "version": 2,
   "builds": [
-    { "src": "server.js", "use": "@vercel/node" },
-    { "src": "index.html", "use": "@vercel/static" }
+    {
+      "src": "server.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "index.js",
+      "use": "@vercel/static"
+    }
   ],
   "routes": [
-    { "src": "/stkpush", "dest": "/server.js" },
-    { "src": "/config", "dest": "/server.js" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    {
+      "src": "/stkpush",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/config",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
   ],
   "headers": [
     {

@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, doc, setDoc, onSnapshot, query, where, deleteDoc, serverTimestamp } from "firebase/firestore";
@@ -12,7 +13,7 @@ if (!process.env) {
 }
 
 let ai = null;
-// AI Initialization is now deferred until config is loaded
+// AI Initialization is deferred until config is loaded
 
 let fares = [];
 let tripHistory = [];
@@ -29,7 +30,7 @@ const getSmartApiUrl = () => {
     // 1. Vercel/Cloud Deployment
     // If running on Vercel or any non-local HTTPS domain, use relative path
     if (host.includes('vercel.app') || (window.location.protocol === 'https:' && !host.includes('localhost') && !host.includes('127.0.0.1'))) {
-        return ''; // Base URL is relative root for config, for STK it appends /stkpush
+        return ''; // Base URL is root. Fetch will append /stkpush or /config
     }
 
     // 2. Localhost IPv4 force
@@ -258,7 +259,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 // --- LOAD APP CONFIG ---
 async function loadAppConfig() {
     try {
-        const configUrl = BASE_URL + '/config';
+        // Fetch from relative path (proxied by Vercel to server.js)
+        const configUrl = '/config';
         const response = await fetch(configUrl);
         if (response.ok) {
             const config = await response.json();
@@ -286,7 +288,7 @@ async function loadAppConfig() {
             }
         }
     } catch (e) {
-        console.warn("Failed to load config from server:", e);
+        console.warn("Failed to load config from server (may be offline or local):", e);
     }
 }
 
@@ -1353,7 +1355,7 @@ async function handleUserMessage() {
     const typingId = renderTypingIndicator();
     
     try {
-        if (!ai) throw new Error("AI Config Missing");
+        if (!ai) throw new Error("AI Not Initialized (Check Internet or Keys)");
 
         // Initialize Chat Session if not exists (Stateful Chat)
         if (!chatSession) {

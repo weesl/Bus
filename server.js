@@ -3,6 +3,7 @@ const express = require('express');
 const axios = require('axios');
 const bodyParser = require('body-parser');
 const os = require('os'); 
+const path = require('path');
 
 const app = express();
 // Support cloud environment ports or default to 3000 for local
@@ -10,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 
 // --- MIDDLEWARE: PERMISSIVE CORS ---
 app.use((req, res, next) => {
-    // Allow ANY origin (*). This is crucial for cloud deployment to work with any frontend.
+    // Allow ANY origin (*). This is crucial for cloud deployment.
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
@@ -24,6 +25,10 @@ app.use((req, res, next) => {
 
 app.use(bodyParser.json());
 
+// --- SERVE STATIC FRONTEND ---
+// Crucial for local development (localhost:3000) so it can find index.html and index.js
+app.use(express.static(__dirname));
+
 // --- CONFIGURATION ---
 // Loaded from Environment Variables for security
 const CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY;
@@ -34,6 +39,12 @@ const CALLBACK_URL = 'https://mydomain.com/mpesa-express-simulate/';
 
 // --- HELPER: GENERATE TOKEN ---
 async function getAccessToken() {
+    // If keys are missing, warn but don't crash app immediately (allows frontend to load)
+    if (!CONSUMER_KEY || !CONSUMER_SECRET) {
+        console.warn("WARNING: M-Pesa Keys missing in server environment.");
+        throw new Error("Server Configuration Error: M-Pesa Keys Missing");
+    }
+    
     const auth = Buffer.from(`${CONSUMER_KEY}:${CONSUMER_SECRET}`).toString('base64');
     try {
         const response = await axios.get(
@@ -75,11 +86,6 @@ function getLocalIp() {
     return '127.0.0.1';
 }
 
-// --- ROUTE: STATUS CHECK ---
-app.get('/', (req, res) => {
-    res.send('✅ BASI Backend is Online and Running!');
-});
-
 // --- ROUTE: APP CONFIG ---
 // Serves public/frontend keys to the client app
 app.get('/config', (req, res) => {
@@ -93,18 +99,12 @@ app.get('/config', (req, res) => {
 });
 
 // --- ROUTE: STK PUSH ---
-app.post(['/', '/stkpush'], async (req, res) => {
+app.post('/stkpush', async (req, res) => {
     const { phone, amount } = req.body;
     console.log(`[${new Date().toLocaleTimeString()}] Payment Request: ${phone} - KES ${amount}`);
 
     if (!phone || !amount) {
         return res.status(400).json({ errorMessage: 'Phone and Amount are required' });
-    }
-
-    // Validate Environment Config
-    if (!CONSUMER_KEY || !CONSUMER_SECRET || !PASSKEY) {
-        console.error("Missing MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, or MPESA_PASSKEY in environment variables.");
-        return res.status(500).json({ errorMessage: 'Server Configuration Error: Missing M-Pesa Keys' });
     }
 
     let formattedPhone = phone.replace(/[\s+]/g, '');
@@ -146,15 +146,14 @@ app.post(['/', '/stkpush'], async (req, res) => {
     }
 });
 
-// --- START SERVER ---
+// --- START SERVER (Local Dev Only) ---
 if (require.main === module) {
     app.listen(PORT, () => {
         const localIp = getLocalIp();
         console.log(`\n🚀 BASI SERVER READY`);
         console.log(`--------------------------------------------------`);
         console.log(`🌍 Listening on Port: ${PORT}`);
-        console.log(`💻 Local URL:      http://127.0.0.1:${PORT}/stkpush`);
-        console.log(`📱 Network URL:    http://${localIp}:${PORT}/stkpush`);
+        console.log(`💻 Local URL:      http://127.0.0.1:${PORT}`);
         console.log(`--------------------------------------------------`);
     });
 }
