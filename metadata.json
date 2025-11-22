@@ -1,0 +1,7 @@
+{
+  "name": "Copy of BASI II",
+  "description": "A simple and efficient bus fare collection system to track daily earnings. Key in fares quickly using predefined buttons or a custom amount input, and see the total collection update in real-time.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
