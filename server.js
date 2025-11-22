@@ -24,11 +24,12 @@ app.use((req, res, next) => {
 
 app.use(bodyParser.json());
 
-// --- CONFIGURATION (SANDBOX) ---
-const CONSUMER_KEY = 'UnDvUCktXcQDyRScx0uAnJlA7rboMWhSnAxvhSOYQiX8QU0t';
-const CONSUMER_SECRET = 'eP7nwvhM3OwL0nVhRlOCsGnRawPi32BkENmT33NygDpdYdq5sy1WyAshdCnidCkb';
-const BUSINESS_SHORTCODE = '174379';
-const PASSKEY = 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919';
+// --- CONFIGURATION ---
+// Loaded from Environment Variables for security
+const CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY;
+const CONSUMER_SECRET = process.env.MPESA_CONSUMER_SECRET;
+const BUSINESS_SHORTCODE = process.env.MPESA_SHORTCODE || '174379';
+const PASSKEY = process.env.MPESA_PASSKEY;
 const CALLBACK_URL = 'https://mydomain.com/mpesa-express-simulate/'; 
 
 // --- HELPER: GENERATE TOKEN ---
@@ -75,24 +76,35 @@ function getLocalIp() {
 }
 
 // --- ROUTE: STATUS CHECK ---
-// Handle root get for health check
 app.get('/', (req, res) => {
     res.send('✅ BASI Backend is Online and Running!');
 });
-// Handle /stkpush get for health check as well (in case of reroute)
-app.get('/stkpush', (req, res) => {
-    res.send('✅ BASI Backend is Online and Running!');
+
+// --- ROUTE: APP CONFIG ---
+// Serves public/frontend keys to the client app
+app.get('/config', (req, res) => {
+    res.json({
+        geminiApiKey: process.env.GEMINI_API_KEY || '',
+        firebase: {
+            apiKey: process.env.FIREBASE_API_KEY || '',
+            projectId: process.env.FIREBASE_PROJECT_ID || ''
+        }
+    });
 });
 
 // --- ROUTE: STK PUSH ---
-// IMPORTANT: Listen on BOTH '/' and '/stkpush'. 
-// Vercel rewrites often strip the path, sending the request to the root of the function.
 app.post(['/', '/stkpush'], async (req, res) => {
     const { phone, amount } = req.body;
     console.log(`[${new Date().toLocaleTimeString()}] Payment Request: ${phone} - KES ${amount}`);
 
     if (!phone || !amount) {
         return res.status(400).json({ errorMessage: 'Phone and Amount are required' });
+    }
+
+    // Validate Environment Config
+    if (!CONSUMER_KEY || !CONSUMER_SECRET || !PASSKEY) {
+        console.error("Missing MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, or MPESA_PASSKEY in environment variables.");
+        return res.status(500).json({ errorMessage: 'Server Configuration Error: Missing M-Pesa Keys' });
     }
 
     let formattedPhone = phone.replace(/[\s+]/g, '');
@@ -135,8 +147,6 @@ app.post(['/', '/stkpush'], async (req, res) => {
 });
 
 // --- START SERVER ---
-// Only run app.listen if running locally. 
-// On Vercel, exporting 'app' allows the platform to handle the request.
 if (require.main === module) {
     app.listen(PORT, () => {
         const localIp = getLocalIp();

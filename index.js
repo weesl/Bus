@@ -3,17 +3,16 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, collection, doc, setDoc, onSnapshot, query, where, deleteDoc, serverTimestamp } from "firebase/firestore";
 
 // --- CONFIGURATION & STATE ---
-// Shim process.env for browser compatibility to use the provided API Key
+// Shim process.env for browser compatibility
 if (typeof process === 'undefined') {
     window.process = { env: {} };
 }
 if (!process.env) {
     process.env = {};
 }
-// Set the specific API key provided for the Chat Bot
-process.env.API_KEY = 'AIzaSyBpkrtCTJvzp2IY7ikYGPmhBQwWFZOP2ug';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+let ai = null;
+// AI Initialization is now deferred until config is loaded
 
 let fares = [];
 let tripHistory = [];
@@ -30,29 +29,31 @@ const getSmartApiUrl = () => {
     // 1. Vercel/Cloud Deployment
     // If running on Vercel or any non-local HTTPS domain, use relative path
     if (host.includes('vercel.app') || (window.location.protocol === 'https:' && !host.includes('localhost') && !host.includes('127.0.0.1'))) {
-        return '/stkpush';
+        return ''; // Base URL is relative root for config, for STK it appends /stkpush
     }
 
     // 2. Localhost IPv4 force
-    if (host === 'localhost') return 'http://127.0.0.1:3000/stkpush';
+    if (host === 'localhost') return 'http://127.0.0.1:3000';
     
     // 3. Local Network (Mobile testing)
     if (host.match(/^192\.168\./) || host.match(/^10\./)) {
-        return `http://${host}:3000/stkpush`;
+        return `http://${host}:3000`;
     }
     
     // Fallback
-    return 'http://127.0.0.1:3000/stkpush';
+    return 'http://127.0.0.1:3000';
 };
+
+const BASE_URL = getSmartApiUrl();
 
 // Settings State
 let settings = {
     isDemoMode: false, // Default to LIVE mode
-    apiUrl: getSmartApiUrl(), // Dynamically set based on current host
+    apiUrl: BASE_URL + '/stkpush', 
     firebaseConfig: {
-        apiKey: 'AIzaSyBZklpMNAuEIa5doua5OlBTdkXYH_wTaPY',
-        projectId: '701315622562',
-        authDomain: '701315622562.firebaseapp.com'
+        apiKey: '',
+        projectId: '',
+        authDomain: ''
     }
 };
 
@@ -223,8 +224,12 @@ function initializeDOMElements() {
 
 
 // --- INITIALIZATION ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     initializeDOMElements();
+    
+    // Load Config from Backend (Environment Variables)
+    await loadAppConfig();
+
     loadData(); 
     loadSettings();
     loadVehicleConfig();
@@ -249,6 +254,41 @@ document.addEventListener('DOMContentLoaded', () => {
         CloudService.init();
     }
 });
+
+// --- LOAD APP CONFIG ---
+async function loadAppConfig() {
+    try {
+        const configUrl = BASE_URL + '/config';
+        const response = await fetch(configUrl);
+        if (response.ok) {
+            const config = await response.json();
+            
+            // Set AI Key
+            if (config.geminiApiKey) {
+                process.env.API_KEY = config.geminiApiKey;
+                try {
+                    ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                } catch (e) {
+                    console.warn("AI Init Failed:", e);
+                }
+            }
+
+            // Set Firebase Defaults
+            if (config.firebase) {
+                // Only overwrite if not set in settings
+                if (!settings.firebaseConfig.apiKey && config.firebase.apiKey) {
+                     settings.firebaseConfig = {
+                         apiKey: config.firebase.apiKey,
+                         projectId: config.firebase.projectId,
+                         authDomain: `${config.firebase.projectId}.firebaseapp.com`
+                     };
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("Failed to load config from server:", e);
+    }
+}
 
 // --- CLOUD SERVICE (Firebase) ---
 const CloudService = {
@@ -551,34 +591,26 @@ function loadData() {
 
 function loadSettings() {
     const saved = localStorage.getItem(SETTINGS_KEY);
-    // Determine the ideal default based on environment
-    const smartDefaultUrl = getSmartApiUrl();
-
+    
     if (saved) {
         const loaded = JSON.parse(saved);
         settings = { ...settings, ...loaded };
         
         // Ensure defaults if stored settings are missing keys
         if (!settings.firebaseConfig.apiKey) {
-             settings.firebaseConfig = {
-                apiKey: 'AIzaSyBZklpMNAuEIa5doua5OlBTdkXYH_wTaPY',
-                projectId: '701315622562',
-                authDomain: '701315622562.firebaseapp.com'
-             };
+             // Wait for async load from config or leave empty
         }
 
         // Smart Update: If user has the old localhost default but is now on a different network, hint update
         if (settings.apiUrl.includes('localhost') && window.location.hostname !== 'localhost') {
-            // Don't overwrite automatically if they might have set it custom, but 
-            // if it matches the old default exactly, update it.
              if (settings.apiUrl === 'http://127.0.0.1:3000/stkpush' || settings.apiUrl === 'http://localhost:3000/stkpush') {
-                settings.apiUrl = smartDefaultUrl;
+                settings.apiUrl = BASE_URL + '/stkpush';
              }
         }
         
         // Use defaults if empty
         if (!settings.apiUrl) {
-            settings.apiUrl = smartDefaultUrl;
+            settings.apiUrl = BASE_URL + '/stkpush';
         }
 
         DOMElements.settingsDemoToggle.checked = settings.isDemoMode;
@@ -595,9 +627,9 @@ function loadSettings() {
         // First load defaults
         settings.isDemoMode = false; // Default to false
         DOMElements.settingsDemoToggle.checked = false;
-        DOMElements.settingsApiUrl.value = smartDefaultUrl;
-        DOMElements.settingsFbApiKey.value = settings.firebaseConfig.apiKey;
-        DOMElements.settingsFbProjectId.value = settings.firebaseConfig.projectId;
+        DOMElements.settingsApiUrl.value = BASE_URL + '/stkpush';
+        DOMElements.settingsFbApiKey.value = '';
+        DOMElements.settingsFbProjectId.value = '';
         DOMElements.settingsApiConfig.classList.remove('opacity-50', 'pointer-events-none');
     }
 }
@@ -1633,7 +1665,7 @@ function triggerStkPush(phone) {
     } else {
         // NODEJS BACKEND LOGIC
         // Default to settings API URL or smart detected URL
-        const proxyUrl = settings.apiUrl || getSmartApiUrl();
+        const proxyUrl = settings.apiUrl;
         
         // Normalize phone to 254 format to be safe
         // Replace ALL plus signs and spaces
