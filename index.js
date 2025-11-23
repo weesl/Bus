@@ -26,13 +26,17 @@ let pendingRouteSelection = null;
 // Detects if we are on localhost, LAN, or Vercel
 const getSmartApiUrl = () => {
     const host = window.location.hostname;
-    
-    // 1. Vercel/Cloud Deployment
-    if (host.includes('vercel.app') || host.includes('onrender.com') || (window.location.protocol === 'https:' && !host.includes('localhost') && !host.includes('127.0.0.1'))) {
-        return ''; 
+    const port = window.location.port;
+    const protocol = window.location.protocol;
+
+    // 1. Same Server Optimization (The most reliable method)
+    // If we are serving the app from the backend port (3000) or on Cloud (HTTPS), 
+    // we use a RELATIVE path. This bypasses CORS completely.
+    if (port === '3000' || protocol === 'https:' || host.includes('vercel.app') || host.includes('onrender.com')) {
+        return ''; // Returns empty string so path becomes just '/stkpush'
     }
 
-    // 2. Localhost IPv4 force (Use 127.0.0.1 to avoid IPv6 ::1 issues)
+    // 2. Localhost IPv4 force (Only needed if running separate frontend server like VS Code Live Server on port 5500)
     if (host === 'localhost' || host === '127.0.0.1') return 'http://127.0.0.1:3000';
     
     // 3. Local Network (Mobile testing)
@@ -49,7 +53,7 @@ const BASE_URL = getSmartApiUrl();
 // Settings State
 let settings = {
     isDemoMode: false, // Default to LIVE mode
-    apiUrl: BASE_URL + '/stkpush', 
+    apiUrl: BASE_URL ? (BASE_URL + '/stkpush') : '/stkpush', 
     firebaseConfig: {
         apiKey: '',
         projectId: '',
@@ -201,7 +205,8 @@ function initializeDOMElements() {
         'mobile-nav-collector', 'mobile-nav-history', 'mobile-nav-map',
         'collector-view', 'history-view', 'map-view', 'map-container', 'map-lat', 'map-lng', 'map-locate-btn',
         'total-collected', 'transactions-count', 'fare-log', 'empty-log-msg',
-        'custom-fare-form', 'custom-amount', 'custom-route-name', 'save-custom-route-btn', 'new-day-btn', 'history-log', 'empty-history-msg', 'download-history-btn',
+        'custom-fare-form', 'custom-amount', 'custom-route-name', 'save-custom-route-btn', 'new-day-btn', 'clear-fares-btn',
+        'history-log', 'empty-history-msg', 'download-history-btn',
         'mpesa-modal-backdrop', 'mpesa-modal-content', 'modal-input-state', 'modal-phone-input',
         'modal-phone-error', 'modal-cancel-btn', 'modal-confirm-btn', 'modal-processing-state',
         'modal-processing-status', 'modal-success-state', 'modal-success-title', 'modal-success-desc', 
@@ -215,7 +220,9 @@ function initializeDOMElements() {
         'route-details-modal', 'rd-route-name', 'rd-fare-amount', 'rd-est-time', 'rd-traffic-text', 'rd-traffic-indicator',
         'rd-pay-btn', 'rd-map-btn', 'rd-share-btn', 'rd-cancel-btn',
         // Chat Bot Elements
-        'agan-chat-fab', 'agan-chat-window', 'chat-messages', 'chat-input', 'chat-send-btn', 'chat-close-btn'
+        'agan-chat-fab', 'agan-chat-window', 'chat-messages', 'chat-input', 'chat-send-btn', 'chat-close-btn',
+        // Confirmation Modal Elements
+        'confirm-modal', 'confirm-title', 'confirm-desc', 'confirm-yes-btn', 'confirm-cancel-btn'
     ];
     ids.forEach(id => {
         DOMElements[id.replace(/-(\w)/g, (match, letter) => letter.toUpperCase())] = document.getElementById(id);
@@ -593,19 +600,24 @@ function loadData() {
 function loadSettings() {
     const saved = localStorage.getItem(SETTINGS_KEY);
     
-    // Force Reset API URL if on Cloud Env (Fixes the "Failed to fetch" due to old localhost setting)
-    const onCloud = window.location.hostname.includes('vercel.app') || window.location.hostname.includes('onrender.com');
+    // Force Reset API URL if necessary to ensure it's relative on server deployments
+    // or correct full path on separate clients.
+    const suggestedUrl = BASE_URL ? (BASE_URL + '/stkpush') : '/stkpush';
     
     if (saved) {
         const loaded = JSON.parse(saved);
         settings = { ...settings, ...loaded };
         
-        // CRITICAL FIX: If user is on cloud but has localhost saved, overwrite it.
-        if (onCloud) {
-            settings.apiUrl = '/stkpush';
+        // AUTO-FIX: If we are serving from port 3000 (backend) or Cloud, 
+        // we MUST use the relative path (suggestedUrl is '/stkpush').
+        // If the stored setting is 'http://localhost...', it will fail CORS. Overwrite it.
+        const isAppServedFromBackend = (window.location.port === '3000' || window.location.hostname.includes('onrender.com') || window.location.hostname.includes('vercel.app'));
+        
+        if (isAppServedFromBackend) {
+             settings.apiUrl = '/stkpush';
         } else if (!settings.apiUrl || (settings.apiUrl.includes('localhost') && window.location.hostname !== 'localhost')) {
-             // If local but network changed
-             settings.apiUrl = BASE_URL + '/stkpush';
+             // If local but network changed (e.g. from localhost to 192.168.x.x)
+             settings.apiUrl = suggestedUrl;
         }
 
         DOMElements.settingsDemoToggle.checked = settings.isDemoMode;
@@ -622,7 +634,7 @@ function loadSettings() {
         // First load defaults
         settings.isDemoMode = false; 
         DOMElements.settingsDemoToggle.checked = false;
-        DOMElements.settingsApiUrl.value = onCloud ? '/stkpush' : (BASE_URL + '/stkpush');
+        DOMElements.settingsApiUrl.value = suggestedUrl;
         DOMElements.settingsFbApiKey.value = '';
         DOMElements.settingsFbProjectId.value = '';
         DOMElements.settingsApiConfig.classList.remove('opacity-50', 'pointer-events-none');
@@ -1465,6 +1477,20 @@ function removeMessage(id) {
     if (el) el.remove();
 }
 
+// --- HELPER: CONFIRMATION MODAL ---
+let pendingConfirmAction = null;
+
+function showConfirmDialog(title, msg, action) {
+    DOMElements.confirmTitle.textContent = title;
+    DOMElements.confirmDesc.textContent = msg;
+    pendingConfirmAction = action;
+    DOMElements.confirmModal.style.display = 'flex';
+}
+
+function closeConfirmDialog() {
+    DOMElements.confirmModal.style.display = 'none';
+    pendingConfirmAction = null;
+}
 
 // --- EVENT LISTENERS ---
 function setupEventListeners() {
@@ -1577,10 +1603,29 @@ function setupEventListeners() {
 
     // Data Management
     DOMElements.newDayBtn.addEventListener('click', () => {
-        if (confirm('Start a new day? This will archive current trips to history.')) {
-            startNewDay();
-        }
+        showConfirmDialog(
+            'Start New Day?',
+            'This will archive all current fares to history and clear the active log for a new day. Proceed?',
+            () => startNewDay()
+        );
     });
+
+    DOMElements.clearFaresBtn.addEventListener('click', () => {
+        if (fares.length === 0) return;
+        showConfirmDialog(
+            'Clear Active Fares?',
+            'WARNING: This will delete all current fares without saving them to history. This action cannot be undone.',
+            () => clearFares()
+        );
+    });
+
+    // Confirmation Modal Actions
+    DOMElements.confirmCancelBtn.addEventListener('click', closeConfirmDialog);
+    DOMElements.confirmYesBtn.addEventListener('click', () => {
+        if (pendingConfirmAction) pendingConfirmAction();
+        closeConfirmDialog();
+    });
+
     DOMElements.downloadHistoryBtn.addEventListener('click', downloadHistory);
 
     // Start App
@@ -1694,6 +1739,7 @@ function triggerStkPush(phone) {
         console.log(`Attempting STK Push to: ${proxyUrl}`);
         
         // MIXED CONTENT CHECK
+        // If frontend is HTTPS and backend is HTTP localhost, browsers block it.
         if (window.location.protocol === 'https:' && proxyUrl.startsWith('http:') && !proxyUrl.includes('localhost') && !proxyUrl.includes('127.0.0.1')) {
              console.error("Mixed Content Error: HTTPS frontend cannot query HTTP backend.");
              DOMElements.modalProcessingState.style.display = 'none';
@@ -1711,6 +1757,7 @@ function triggerStkPush(phone) {
             method: 'POST',
             mode: 'cors', // Explicitly set CORS mode
             credentials: 'omit', // CRITICAL: Do not send cookies/auth to allow wildcard (*) CORS on server
+            keepalive: true, // Helps with mobile connection drops
             headers: { 
                 'Content-Type': 'application/json'
             },
@@ -1737,7 +1784,7 @@ function triggerStkPush(phone) {
             }
         })
         .catch(err => {
-            console.error("STK Push Error:", err);
+            console.error("STK Push Error Stack:", err);
             
             let friendlyError = err.message;
             let title = 'Request Failed';

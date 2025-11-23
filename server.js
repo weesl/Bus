@@ -15,10 +15,18 @@ const PORT = process.env.PORT || 3000;
 // --- MIDDLEWARE: PERMISSIVE CORS ---
 app.use((req, res, next) => {
     // Allow ANY origin (*). This is crucial for cloud deployment.
-    res.header("Access-Control-Allow-Origin", "*");
+    // However, if request has origin header, echo it back to satisfy strict browsers
+    const origin = req.headers.origin;
+    if (origin) {
+        res.header("Access-Control-Allow-Origin", origin);
+    } else {
+        res.header("Access-Control-Allow-Origin", "*");
+    }
+    
     res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
     res.header("Access-Control-Allow-Private-Network", "true"); 
+    res.header("Access-Control-Allow-Credentials", "true");
 
     // Logger for debugging 'Failed to fetch'
     console.log(`[INCOMING] ${req.method} ${req.url}`);

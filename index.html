@@ -387,10 +387,17 @@
                     <!-- Fare Log Header -->
                     <div class="flex justify-between items-end mb-4">
                         <h2 class="text-xl font-bold text-primary">Fare Log</h2>
-                        <button id="new-day-btn" class="text-xs bg-secondary/30 text-primary hover:bg-secondary/50 hover:text-white font-bold px-4 py-2 rounded-full transition flex items-center tracking-wide border border-primary/20">
-                           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            NEW DAY
-                        </button>
+                        <div class="flex space-x-2">
+                             <button id="clear-fares-btn" class="p-2 rounded-full bg-secondary/20 text-danger hover:bg-danger/20 transition border border-transparent hover:border-danger/30" title="Clear Current Fares (No Archive)">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                            <button id="new-day-btn" class="text-xs bg-secondary/30 text-primary hover:bg-secondary/50 hover:text-white font-bold px-4 py-2 rounded-full transition flex items-center tracking-wide border border-primary/20">
+                               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                NEW DAY
+                            </button>
+                        </div>
                     </div>
                     
                     <!-- Fare Log List -->
@@ -593,7 +600,7 @@
         </div>
     </div>
 
-    <!-- Vehicle Configuration Modal (New) -->
+    <!-- Vehicle Configuration Modal -->
     <div id="vehicle-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4 z-50 animate-fadeIn">
         <div class="bg-surface rounded-[2rem] shadow-2xl w-full max-w-sm p-8 transform transition-transform duration-300 border border-secondary/40">
             <div class="flex items-center justify-center mb-6">
@@ -669,6 +676,18 @@
             <div class="flex space-x-3 mt-8">
                  <button id="settings-close-btn" class="flex-1 bg-secondary/20 hover:bg-secondary/40 text-gray-300 font-bold py-3 rounded-xl transition">Cancel</button>
                 <button id="settings-save-btn" class="flex-1 bg-primary text-background hover:bg-white font-bold py-3 rounded-xl transition shadow-lg">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4 z-[60] animate-fadeIn">
+        <div class="bg-surface rounded-2xl p-6 max-w-sm w-full border border-secondary/40 shadow-2xl transform scale-100 transition-all">
+            <h3 id="confirm-title" class="text-xl font-bold text-white mb-2">Confirm Action</h3>
+            <p id="confirm-desc" class="text-gray-400 mb-6 text-sm">Are you sure you want to proceed?</p>
+            <div class="flex space-x-3">
+                <button id="confirm-cancel-btn" class="flex-1 bg-secondary/20 hover:bg-secondary/40 text-gray-300 font-bold py-3 rounded-xl transition">Cancel</button>
+                <button id="confirm-yes-btn" class="flex-1 bg-danger text-white hover:bg-red-600 font-bold py-3 rounded-xl transition shadow-lg">Confirm</button>
             </div>
         </div>
     </div>
