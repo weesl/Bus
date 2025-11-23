@@ -76,24 +76,7 @@ function getTimestamp() {
     return nairobiTime.toISOString().replace(/[^0-9]/g, '').slice(0, 14);
 }
 
-// --- HELPER: LOCAL IP ---
-function getLocalIp() {
-    const interfaces = os.networkInterfaces();
-    for (const name of Object.keys(interfaces)) {
-        for (const iface of interfaces[name]) {
-            if ('IPv4' !== iface.family || iface.internal) continue;
-            return iface.address;
-        }
-    }
-    return '127.0.0.1';
-}
-
-// --- ROUTE: ROOT / HEALTH ---
-// This fixes Vercel 404s and allows easy testing
-app.get('/', (req, res) => {
-    res.send('✅ BASI Backend is Online and Running!');
-});
-
+// --- ROUTE: HEALTH ---
 app.get('/health', (req, res) => {
     res.send('OK');
 });
@@ -162,19 +145,23 @@ app.post('/stkpush', async (req, res) => {
     }
 });
 
+// --- CATCH-ALL ROUTE ---
+// Ensure index.html is served for any non-API routes (SPA behavior)
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // --- START SERVER ---
 if (require.main === module) {
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
         console.log(`\n🚀 BASI SERVER READY`);
         console.log(`🌍 Listening on Port: ${PORT}`);
-        console.log(`💻 Link: http://127.0.0.1:${PORT}`);
         
         // Key Status Check
         const mpesaStatus = (process.env.MPESA_CONSUMER_KEY && process.env.MPESA_CONSUMER_SECRET) ? "OK" : "MISSING";
         const geminiStatus = process.env.GEMINI_API_KEY ? "OK" : "MISSING";
-        const firebaseStatus = process.env.FIREBASE_PROJECT_ID ? "OK" : "MISSING";
         
-        console.log(`✅ Keys Status: M-Pesa [${mpesaStatus}] | Gemini [${geminiStatus}] | Firebase [${firebaseStatus}]`);
+        console.log(`✅ Keys Status: M-Pesa [${mpesaStatus}] | Gemini [${geminiStatus}]`);
     });
 }
 

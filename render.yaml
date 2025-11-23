@@ -20,3 +20,5 @@ services:
         sync: false
       - key: FIREBASE_PROJECT_ID
         sync: false
+      - key: NODE_VERSION
+        value: 18.x
