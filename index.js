@@ -734,108 +734,126 @@ function shareSafetyDetails() {
 // --- HELPER: PDF RECEIPT ---
 function shareTrip(fare) {
     if (!window.jspdf) {
-        alert("PDF Generator loading... Please try again in a moment.");
+        alert("PDF Generator library not loaded. Please check your internet connection.");
         return;
     }
 
     const { jsPDF } = window.jspdf;
+    // 80mm width is standard thermal paper size
     const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: [80, 120]
+        format: [80, 150] // Height variable based on content, but fixed page for simplicity
     });
 
     const { origin, destination } = parseRoute(fare.route || 'Custom Trip');
     const dateObj = new Date(fare.timestamp);
-    const date = dateObj.toLocaleDateString();
-    const time = dateObj.toLocaleTimeString();
+    const dateStr = dateObj.toLocaleDateString();
+    const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const refId = `REF-${fare.id.toString().slice(-8)}`;
+    const vehReg = vehicleConfig.registration || 'N/A';
 
-    doc.setFont("Courier");
-    doc.setFontSize(10);
+    // Styling constants
+    const centerX = 40; // Middle of 80mm
+    let y = 10; // Vertical cursor
 
-    let y = 10;
-    const centerX = 40;
-
-    doc.setFontSize(16);
+    // --- HEADER ---
     doc.setFont("Courier", "bold");
-    doc.text("BASI", centerX, y, { align: "center" });
+    doc.setFontSize(14);
+    doc.text("BASI RECEIPT", centerX, y, { align: "center" });
     y += 5;
-    doc.setFontSize(10);
+    
     doc.setFont("Courier", "normal");
-    doc.text("Travel & Fare Collection", centerX, y, { align: "center" });
-    y += 5;
-    doc.text("--------------------------------", centerX, y, { align: "center" });
+    doc.setFontSize(8);
+    doc.text("Travel Smart, Travel Safe", centerX, y, { align: "center" });
     y += 5;
 
+    doc.setLineWidth(0.5);
+    doc.line(5, y, 75, y); // Separator
+    y += 5;
+
+    // --- TRIP DETAILS ---
     doc.setFontSize(9);
-    const addLine = (label, value) => {
+    
+    const addRow = (label, value) => {
         doc.text(label, 5, y);
-        const textWidth = doc.getTextWidth(value);
-        doc.text(value, 75 - textWidth, y);
+        doc.text(value, 75, y, { align: "right" });
         y += 5;
     };
 
-    addLine("Date:", date);
-    addLine("Time:", time);
-    addLine("Ref ID:", refId);
+    addRow("Date:", dateStr);
+    addRow("Time:", timeStr);
+    addRow("Ref:", refId);
+    addRow("Vehicle:", vehReg);
     
-    if (vehicleConfig.registration) {
-        addLine("Vehicle:", vehicleConfig.registration);
+    if (vehicleConfig.alias) {
+        addRow("Fleet:", vehicleConfig.alias);
     }
-    
+
     y += 2;
-    doc.text("--------------------------------", centerX, y, { align: "center" });
+    doc.line(5, y, 75, y); // Separator
     y += 5;
 
-    doc.setFontSize(10);
+    // --- ROUTE ---
+    doc.setFont("Courier", "bold");
     doc.text("FROM:", 5, y);
-    y += 5;
-    doc.setFont("Courier", "bold");
-    const splitOrigin = doc.splitTextToSize(origin, 70);
-    doc.text(splitOrigin, 10, y);
-    y += (splitOrigin.length * 5) + 2;
-
+    y += 4;
     doc.setFont("Courier", "normal");
-    doc.text("TO:", 5, y);
-    y += 5;
-    doc.setFont("Courier", "bold");
-    const splitDest = doc.splitTextToSize(destination, 70);
-    doc.text(splitDest, 10, y);
-    y += (splitDest.length * 5) + 5;
+    // Handle long text wrapping
+    const originLines = doc.splitTextToSize(origin, 70);
+    doc.text(originLines, 5, y);
+    y += (originLines.length * 4) + 2;
 
-    doc.text("--------------------------------", centerX, y, { align: "center" });
-    y += 7;
-    doc.setFontSize(14);
-    doc.text("TOTAL", 5, y);
-    doc.text(`KES ${fare.amount.toLocaleString()}`, 75, y, { align: "right" });
+    doc.setFont("Courier", "bold");
+    doc.text("TO:", 5, y);
+    y += 4;
+    doc.setFont("Courier", "normal");
+    const destLines = doc.splitTextToSize(destination, 70);
+    doc.text(destLines, 5, y);
+    y += (destLines.length * 4) + 5;
+
+    doc.line(5, y, 75, y);
+    y += 6;
+
+    // --- AMOUNT ---
+    doc.setFontSize(16);
+    doc.setFont("Courier", "bold");
+    doc.text(`KES ${fare.amount}`, centerX, y, { align: "center" });
+    y += 6;
+    
+    doc.setFontSize(10);
+    doc.setFont("Courier", "italic");
+    doc.text("Paid: M-PESA/CASH", centerX, y, { align: "center" });
     y += 10;
 
-    doc.setFontSize(9);
-    doc.setFont("Courier", "normal");
-    doc.text("Payment: M-PESA / CASH", centerX, y, { align: "center" });
-    y += 5;
-    doc.text("Status: CONFIRMED", centerX, y, { align: "center" });
-    y += 8;
-    doc.setFont("Courier", "bold");
-    doc.text("Safe Travels!", centerX, y, { align: "center" });
-    y += 5;
-    doc.setFont("Courier", "italic");
+    // --- FOOTER ---
     doc.setFontSize(8);
+    doc.setFont("Courier", "bold");
     doc.text("Powered by BASI", centerX, y, { align: "center" });
-
-    const fileName = `receipt_${refId}.pdf`;
-    const pdfBlob = doc.output('blob');
-    const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
+    
+    // Save or Share
+    const fileName = `BASI_Receipt_${refId}.pdf`;
+    
+    // Mobile Native Share
     // @ts-ignore
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        // @ts-ignore
-        navigator.share({
+    if (navigator.share && navigator.canShare) {
+        const pdfBlob = doc.output('blob');
+        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+        
+        const shareData = {
             files: [file],
-            title: 'BASI Trip Receipt',
-            text: 'Here is your BASI travel receipt.'
-        }).catch(console.error);
+            title: 'Trip Receipt',
+            text: `Receipt for trip to ${destination}. KES ${fare.amount}.`
+        };
+
+        if (navigator.canShare(shareData)) {
+            navigator.share(shareData).catch(err => {
+                console.error("Share failed:", err);
+                doc.save(fileName); // Fallback
+            });
+        } else {
+            doc.save(fileName);
+        }
     } else {
         doc.save(fileName);
     }

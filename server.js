@@ -41,12 +41,6 @@ const BUSINESS_SHORTCODE = process.env.MPESA_SHORTCODE || '174379';
 const PASSKEY = process.env.MPESA_PASSKEY;
 const CALLBACK_URL = 'https://mydomain.com/mpesa-express-simulate/'; 
 
-if (CONSUMER_KEY && CONSUMER_SECRET) {
-    console.log("✅ M-Pesa Keys Loaded.");
-} else {
-    console.warn("⚠️ M-Pesa Keys MISSING.");
-}
-
 // --- HELPER: GENERATE TOKEN ---
 async function getAccessToken() {
     if (!CONSUMER_KEY || !CONSUMER_SECRET) {
@@ -117,7 +111,8 @@ app.post('/stkpush', async (req, res) => {
     }
 
     if (!CONSUMER_KEY || !CONSUMER_SECRET || !PASSKEY) {
-        return res.status(500).json({ errorMessage: 'Server Config Error: M-Pesa Keys Missing' });
+        console.error("Server Error: Keys not loaded.");
+        return res.status(500).json({ errorMessage: 'Server Configuration Error: Missing M-Pesa Keys' });
     }
 
     let formattedPhone = phone.replace(/[\s+]/g, '');
@@ -165,6 +160,13 @@ if (require.main === module) {
         console.log(`\n🚀 BASI SERVER READY`);
         console.log(`🌍 Listening on Port: ${PORT}`);
         console.log(`💻 Link: http://127.0.0.1:${PORT}`);
+        
+        // Key Status Check
+        const mpesaStatus = (process.env.MPESA_CONSUMER_KEY && process.env.MPESA_CONSUMER_SECRET) ? "OK" : "MISSING";
+        const geminiStatus = process.env.GEMINI_API_KEY ? "OK" : "MISSING";
+        const firebaseStatus = process.env.FIREBASE_PROJECT_ID ? "OK" : "MISSING";
+        
+        console.log(`✅ Keys Status: M-Pesa [${mpesaStatus}] | Gemini [${geminiStatus}] | Firebase [${firebaseStatus}]`);
     });
 }
 
