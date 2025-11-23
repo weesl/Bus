@@ -52,7 +52,7 @@ const BASE_URL = getSmartApiUrl();
 
 // Settings State
 let settings = {
-    isDemoMode: false, // Default to LIVE mode
+    isDemoMode: true, // Default to DEMO mode
     apiUrl: BASE_URL ? (BASE_URL + '/stkpush') : '/stkpush', 
     firebaseConfig: {
         apiKey: '',
@@ -632,12 +632,12 @@ function loadSettings() {
         }
     } else {
         // First load defaults
-        settings.isDemoMode = false; 
-        DOMElements.settingsDemoToggle.checked = false;
+        settings.isDemoMode = true; // DEFAULT TO DEMO
+        DOMElements.settingsDemoToggle.checked = true;
         DOMElements.settingsApiUrl.value = suggestedUrl;
         DOMElements.settingsFbApiKey.value = '';
         DOMElements.settingsFbProjectId.value = '';
-        DOMElements.settingsApiConfig.classList.remove('opacity-50', 'pointer-events-none');
+        DOMElements.settingsApiConfig.classList.add('opacity-50', 'pointer-events-none'); // Disable config input UI
     }
 }
 
